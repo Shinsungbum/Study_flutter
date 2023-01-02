@@ -1,197 +1,147 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import './style.dart' as style;
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:flutter/rendering.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() {
   runApp(MaterialApp(
-    theme: style.theme,
-    home: MyApp(),
-  ) );
+      home:  MyApp()
+  )
+  );
 }
 
+
 class MyApp extends StatefulWidget {
-  const MyApp({Key? key}) : super(key: key);
+  MyApp({Key? key}) : super(key: key);
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
-  var tab = 0;
-  var data = [];
-  var userImage;
-  var userContent;
-  getData() async{
-    var result = await http.get(Uri.parse('https://codingapple1.github.io/app/data.json'));
-    setState(() {
-      data = jsonDecode(result.body);
-    });
+
+  getPermission() async {
+    var status = await Permission.contacts.status;
+    if(status.isGranted) {
+      print('허람됨');
+    }else if(status.isDenied){
+      print('거절됨');
+      Permission.contacts.request();
+      openAppSettings();
+    }
   }
 
-  addMyData(){
-    var myData = {
-      'id':data.length,
-      'image':userImage,
-      'likes':5,
-      'date':'July 25',
-      'content':userContent,
-      'liked':false,
-      'user':'John Kim',
 
-    };
+
+  var name = [['홍길동', '010-0000-0000'], ['신성범', '010-1111-1111'], ['피자집', '010-2222-2222']];
+  var like = [0, 0, 0];
+  //부모위젯에서 수정함수를 만들어야함 아니면
+
+  remName(i){
     setState(() {
-      data.insert(0, myData);
+      name.removeAt(i);
     });
   }
-
-  setUserContent(a){
+  addName(value, number){
     setState(() {
-      userContent = a;
+      List<String> list = [value, number];
+      name.add(list);
     });
-  }
-  
-  @override
-  initState()  {
-    super.initState();
-    getData();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-          title: Text('Instagram'),
-          actions: [
-            IconButton(
-              icon: Icon(Icons.add_box_outlined),
-              onPressed: () async {
-                var picker = ImagePicker();
-                var image = await picker.pickImage(source: ImageSource.gallery);
-                if(image != null){
-                  setState(() {
-                    userImage = File(image.path);
-                  });
-                }
-                Navigator.push(context,
-                MaterialPageRoute(builder: (context) => Upload(
-                    userImage: userImage,
-                    setUserContent:setUserContent,
-                    addMyData:addMyData
-                ))
-                );
-              },
-              iconSize: 30,
-            )
-          ],
+      floatingActionButton: FloatingActionButton(
+          onPressed: (){
+            showDialog(context: context, builder: (context){
+              return DialogUI(addName : addName);//보낼때는 중괄호 쓰면 안됨 무한루프?에 빠지는것같음
+            });
+          }
       ),
-      body: [Home(data : data), Text('샵페이지')][tab],
-      bottomNavigationBar: BottomNavigationBar(
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
-        onTap: (i){
-          setState(() {
-            tab = i;
-          });
+
+      appBar: AppBar( title: Text(name.length.toString()), actions: [
+        IconButton(onPressed: (){getPermission();}, icon: Icon(Icons.contacts))
+      ], ),
+      body: ListView.builder(
+        itemCount: name.length,
+        itemBuilder: (c, i){
+          return ListTile(
+            leading: Image.asset('assets/bibim.png'),
+            title: Text(name[i][0] +'     '+ name[i][1]),
+
+            trailing: TextButton(onPressed: (){remName(i);}, child: Text('삭제'),),
+          );
         },
-        items: [
-          BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: '홈'),
-          BottomNavigationBarItem(icon: Icon(Icons.shopping_bag_outlined), label: '샵'),
-        ],
       ),
-
-    );
-  }
-}
-
-//홈화면
-class Home extends StatefulWidget {
-  const Home({Key? key, this.data}) : super(key: key);
-  final data;
-
-  @override
-  State<Home> createState() => _HomeState();
-}
-
-class _HomeState extends State<Home> {
-
-  var scroll = ScrollController();
-  final ValueNotifier<bool> visible = ValueNotifier<bool>(true);
-
-  @override
-  void initState() {
-    super.initState();
-    scroll.addListener(() async {
-      if(scroll.position.pixels == scroll.position.maxScrollExtent){
-        var moredata = await http.get(Uri.parse('https://codingapple1.github.io/app/more1.json'));
-        var moredata2 = jsonDecode(moredata.body);
-        setState(() {
-          widget.data.add(moredata2);
-        });
-      }
-
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-
-  if(widget.data.isNotEmpty){
-    return ListView.builder(itemCount: widget.data.length, controller: scroll, itemBuilder: (c, i){
-      return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                widget.data[i]['image'].runtimeType == String
-                  ?Image.network(widget.data[i]['image'])
-                  :Image.file(widget.data[i]['image']),
-
-                Text('좋아요${widget.data[i]['likes']}'),
-                Text('${widget.data[i]['user']}'),
-                Text('${widget.data[i]['content']}'),
-              ],
-            );
-    });
-  }else{
-    return Text('로딩중임');
-  }
-
-  }
-}
-
-class Upload extends StatefulWidget {
-  Upload({Key? key, this.userImage, this.setUserContent, this.addMyData}) : super(key: key);
-  final userImage;
-  final addMyData;
-  final setUserContent;
-  var inputText = '';
-  @override
-  State<Upload> createState() => _UploadState();
-}
-
-class _UploadState extends State<Upload> {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(actions: [TextButton(onPressed: (){
-        widget.addMyData();
-        Navigator.pop(context);
-      }, child: Text('공유'))]),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Image.file(widget.userImage),
-          Text('이미지업로드화면'),
-          TextField(onChanged: (text){
-           widget.setUserContent(text);
-          }),
-          IconButton(onPressed: (){
-            Navigator.pop(context);
-          }, icon: Icon(Icons.close)),
-        ],
+      bottomNavigationBar: BottomAppBar(
+        child: Container(
+          height: 80,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Icon(Icons.call),
+              Icon(Icons.message),
+              Icon(Icons.book),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
+
+
+class DialogUI extends StatelessWidget {
+  DialogUI({Key? key, this.addName}) : super(key: key);
+  final addName;
+  var inputData = TextEditingController();
+  var inputData2 = '';
+  var inputData3 = '';
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+        child: Container(
+          width: 500, height: 300, padding: EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Contact', style: TextStyle(fontSize: 50)),
+              TextField( onChanged: (text){ inputData2 = text; } ),
+              TextField( onChanged: (text){ inputData3 = text; } ),
+              Container(
+                child: Row(
+                  children: [
+                    TextButton(
+                        onPressed: (){Navigator.pop(context); },
+                        child: Text('Cancel', style: TextStyle(fontSize: 20),)
+                    ),
+                    TextButton(
+                        onPressed: (){
+                          if(inputData2.isNotEmpty){
+                            addName(inputData2, inputData3);
+                            Navigator.pop(context);
+                          }
+                        },
+                        child: Text('OK', style: TextStyle(fontSize: 20),)
+                    )
+                  ],
+                ),
+              )
+            ],
+          ),
+        )
+    );;
+  }
+}
+
+/*클래스로 만듬
+클래스는 변수, 함수 보관함
+재사용이 많은 ui들 또는 큰페이지들 만들면 좋음*/
+/*class ShopItem extends StatelessWidget {
+  const ShopItem({Key? key}) : super(key: key);
+
+  @override//내꺼 먼저 적용하라는 뜻
+  build(context) {
+    return SizedBox(
+      child: Text("안녕"),
+    );
+  }
+}*/
